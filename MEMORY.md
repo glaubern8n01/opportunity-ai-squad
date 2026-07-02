@@ -130,3 +130,82 @@ pastas vazias fora do git), não de correção.
 **Próximos passos**: aguardando o usuário concluir a autenticação OAuth do MCP do
 Supabase para aplicar a migration no banco real; aguardando aprovação explícita do
 usuário para o primeiro `git push`.
+
+## Sessão de aplicação da migration no banco real — 2026-07-02
+
+**Objetivo**: com o MCP do Supabase já autenticado pelo usuário, validar a conexão e
+aplicar a migration inicial no projeto Supabase real (`kzokuvywgucvuasgbxgf`).
+
+**O que foi feito**:
+- Validada a conexão via `mcp__supabase__get_project_url` (`https://kzokuvywgucvuasgbxgf.supabase.co`)
+  e `mcp__supabase__list_tables` (banco vazio antes da migration, confirmando que era
+  a primeira aplicação).
+- Em vez de transcrever o SQL manualmente a partir da migration do Alembic (risco de
+  erro), gerado o DDL exato rodando `alembic upgrade head --sql` (modo offline, já
+  suportado por `alembic/env.py` — não precisa de conexão real, só lê a URL do `.env`).
+- Aplicado o DDL limpo (sem as linhas de log do Alembic, mantendo `BEGIN`/`COMMIT`
+  implícitos no `apply_migration`) via `mcp__supabase__apply_migration`, incluindo a
+  tabela `alembic_version` e o `INSERT` da revision `734d10e8f4c9` — assim, se o
+  `DATABASE_URL` do `.env` for apontado para o Postgres real do Supabase no futuro,
+  `alembic upgrade head` vai reconhecer a migration como já aplicada em vez de tentar
+  recriar as tabelas.
+- Confirmadas as 22 tabelas (21 do schema + `alembic_version`) via `list_tables` e
+  checado `get_advisors(type="security")` pós-migration.
+
+**Problemas encontrados**:
+- O projeto Supabase tem uma função `rls_auto_enable()` (`SECURITY DEFINER`) que
+  habilita RLS automaticamente em toda tabela nova, sem criar policies — todas as 22
+  tabelas ficaram com `rls_enabled: true` e zero policies. Não bloqueia o app (que
+  acessa via SQLAlchemy/psycopg direto com a connection string, não via PostgREST/
+  `anon`/`authenticated`), mas é relevante caso a API REST do Supabase seja exposta
+  no futuro — nesse caso as policies precisarão ser criadas explicitamente.
+- O MCP do Supabase não expõe a senha do Postgres (por design/segurança) — não foi
+  possível montar automaticamente a connection string completa para popular
+  `DATABASE_URL` no `.env`. Isso ainda depende do usuário pegar a connection string
+  no dashboard (Project Settings → Database).
+
+**Decisões tomadas**:
+- Preferido gerar o SQL via `alembic upgrade head --sql` em vez de escrever/copiar o
+  DDL manualmente a partir do arquivo de migration — garante fidelidade byte-a-byte
+  com o que `alembic upgrade head` geraria localmente, e mantém as duas fontes
+  (Alembic local + Supabase real) em sync via a linha `INSERT INTO alembic_version`.
+
+**Próximos passos**: usuário preencher `DATABASE_URL` (via dashboard do Supabase),
+`ANTHROPIC_API_KEY` e tokens do Telegram no `.env`; decidir se/quando criar policies
+de RLS; aprovar o primeiro `git push` para o repositório público.
+
+**Nota de fechamento desta sessão**: ao revisar TODO.md, os itens de "curto prazo"
+(CI, CodeQL, Dependabot, Gitleaks, docs populados) já estavam implementados no
+repositório — o TODO.md estava desatualizado, não o trabalho em si. Corrigido nesta
+sessão. O único item de fato pendente era o hardening de grants no Supabase real
+(abaixo).
+
+## Sessão de hardening de RLS/grants no Supabase real — 2026-07-02
+
+**Objetivo**: a pedido do usuário, endurecer o acesso ao banco Supabase real após a
+migration inicial — RLS já vinha habilitado automaticamente pelo projeto (função
+`rls_auto_enable()`), mas sem policies.
+
+**O que foi feito**:
+- Checado `information_schema.role_table_grants` para a tabela `products` e confirmado
+  que `anon`/`authenticated` tinham grants CRUD completos (SELECT/INSERT/UPDATE/DELETE/
+  TRUNCATE/REFERENCES/TRIGGER) em todas as 22 tabelas — comportamento padrão do
+  Supabase para o schema `public`.
+- Aplicada uma segunda migration via `mcp__supabase__apply_migration`
+  (`revoke_anon_authenticated_grants`): `REVOKE ALL` em todas as tabelas/sequences/
+  functions do schema `public` de `anon`/`authenticated`, mais `ALTER DEFAULT
+  PRIVILEGES` para que tabelas futuras já nasçam sem esses grants.
+- Confirmado com uma nova query a `role_table_grants` que a lista ficou vazia para
+  `anon`/`authenticated` no schema `public`.
+- Documentada a decisão em SECURITY.md.
+
+**Decisões tomadas**:
+- Não foram criadas policies de RLS por linha/usuário — este backend nunca é acessado
+  via PostgREST/Data API do Supabase (só via `DATABASE_URL`/SQLAlchemy direto), então
+  não existe um conceito de "usuário autenticado via Supabase Auth" que precise de
+  policies granulares. RLS habilitado + zero grants para `anon`/`authenticated` é a
+  postura correta aqui; policies granulares ficam para se/quando o projeto expuser a
+  Data API do Supabase diretamente a clientes.
+
+**Próximos passos**: mesmos de antes (preencher `.env`, aprovar push) — nada novo
+bloqueado por esta sessão.

@@ -30,6 +30,11 @@ Considera-se vulnerabilidade de segurança neste projeto:
 - [Dependabot](https://docs.github.com/en/code-security/dependabot) mantém dependências atualizadas.
 - Todas as variáveis obrigatórias são validadas na inicialização (`src/opportunity_squad/core/config.py`) — a aplicação falha rápido (fail-fast) se algo essencial estiver ausente.
 - Conectores de fontes de dados respeitam APIs oficiais e Termos de Uso — sem scraping agressivo.
+- No Supabase real, todas as tabelas têm RLS habilitado (padrão do projeto) e os grants
+  CRUD padrão para `anon`/`authenticated` foram revogados explicitamente (schema
+  `public`, incluindo `ALTER DEFAULT PRIVILEGES` para tabelas futuras) — o backend só é
+  acessado via conexão Postgres direta (`DATABASE_URL`), nunca via PostgREST/Data API,
+  então não há necessidade de policies de RLS granulares por usuário.
 
 ## Versões suportadas
 
