@@ -1,0 +1,7 @@
+name: github_trending
+category: sources
+entry_point: "plugins.sources.github_trending.connector:GitHubTrendingConnector"
+description: >
+  Repositórios em alta via GitHub Search API oficial (busca por estrelas recentes).
+  Não requer autenticação, mas aceita GITHUB_TOKEN opcional para rate limit maior.
+requires_config: []

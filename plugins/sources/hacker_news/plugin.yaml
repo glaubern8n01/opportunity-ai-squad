@@ -1,0 +1,7 @@
+name: hacker_news
+category: sources
+entry_point: "plugins.sources.hacker_news.connector:HackerNewsConnector"
+description: >
+  Posts (Show HN, top stories) via API oficial pública do Hacker News (Firebase).
+  Não requer autenticação.
+requires_config: []

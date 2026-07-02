@@ -1,0 +1,8 @@
+name: telegram
+category: notifications
+entry_point: "plugins.notifications.telegram.notifier:TelegramNotifier"
+description: >
+  Envia oportunidades, relatórios, alertas e erros para um chat/canal do Telegram.
+requires_config:
+  - bot_token
+  - chat_id

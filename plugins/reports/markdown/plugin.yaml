@@ -1,0 +1,7 @@
+name: markdown
+category: reports
+entry_point: "plugins.reports.markdown.generator:MarkdownReportGenerator"
+description: >
+  Gera relatórios (diário/semanal/mensal) em Markdown, prontos para enviar via
+  Telegram ou salvar em docs/reports/.
+requires_config: []

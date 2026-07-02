@@ -1,0 +1,9 @@
+name: anthropic
+category: ai
+entry_point: "plugins.ai.anthropic.provider:AnthropicProvider"
+description: >
+  Provedor de IA via Anthropic API (Claude). Usa ANTHROPIC_MODEL_CHEAP para
+  processamento em massa (Haiku), ANTHROPIC_MODEL para análises completas
+  (Sonnet) e ANTHROPIC_MODEL_DEEP para análises profundas (Opus).
+requires_config:
+  - api_key
