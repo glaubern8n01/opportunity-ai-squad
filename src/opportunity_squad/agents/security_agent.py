@@ -8,9 +8,10 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+from typing import Any
 
 from opportunity_squad.core.config import Settings, get_settings
-from opportunity_squad.core.interfaces.agent import Agent, AgentContext, AgentResult
+from opportunity_squad.core.interfaces.agent import Agent, AgentContext
 from opportunity_squad.db.models.enums import AlertLevel
 from opportunity_squad.db.models.report import Alert
 from opportunity_squad.db.session import session_scope
@@ -28,22 +29,17 @@ _SKIP_DIRS = {".git", ".venv", "node_modules", ".agents", "__pycache__"}
 class SecurityAgent(Agent):
     name = "security"
 
-    def run(self, context: AgentContext) -> AgentResult:
-        try:
-            issues = self._check_required_config() + self._scan_for_secrets()
-            if issues:
-                with session_scope() as session:
-                    session.add(
-                        Alert(
-                            level=AlertLevel.ERROR,
-                            message="Security Agent encontrou problemas:\n" + "\n".join(issues),
-                        )
+    def execute(self, context: AgentContext) -> dict[str, Any]:
+        issues = self._check_required_config() + self._scan_for_secrets()
+        if issues:
+            with session_scope() as session:
+                session.add(
+                    Alert(
+                        level=AlertLevel.ERROR,
+                        message="Security Agent encontrou problemas:\n" + "\n".join(issues),
                     )
-            self.logger.info("security_completed", issues=len(issues))
-            return AgentResult(agent_name=self.name, success=True, output={"issues": issues})
-        except Exception as exc:
-            self.logger.error("security_failed", error=str(exc))
-            return AgentResult(agent_name=self.name, success=False, error=str(exc))
+                )
+        return {"issues_count": len(issues), "issues": issues}
 
     @staticmethod
     def _check_required_config() -> list[str]:

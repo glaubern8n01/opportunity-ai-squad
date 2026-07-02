@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import json
+from typing import Any
 
-from opportunity_squad.core.interfaces.agent import Agent, AgentContext, AgentResult
+from opportunity_squad.core.interfaces.agent import Agent, AgentContext
 from opportunity_squad.core.interfaces.ai_provider import AIProvider, ModelTier
 from opportunity_squad.db.models.market import MarketAnalysis
 from opportunity_squad.db.models.product import Product
@@ -25,39 +26,34 @@ class MarketAgent(Agent):
         self._ai = ai_provider
         self._batch_size = batch_size
 
-    def run(self, context: AgentContext) -> AgentResult:
-        try:
-            analyzed = 0
-            with session_scope() as session:
-                products = (
-                    session.query(Product)
-                    .outerjoin(MarketAnalysis, MarketAnalysis.product_id == Product.id)
-                    .filter(MarketAnalysis.id.is_(None))
-                    .filter(Product.opportunity_score.isnot(None))
-                    .limit(self._batch_size)
-                    .all()
-                )
-                for product in products:
-                    data = self._analyze(product)
-                    if data is None:
-                        continue
-                    session.add(
-                        MarketAnalysis(
-                            product_id=product.id,
-                            market_size=data.get("market_size"),
-                            growth_rate=data.get("growth_rate"),
-                            geography=data.get("geography"),
-                            summary=data.get("summary"),
-                            generated_by=self.name,
-                        )
+    def execute(self, context: AgentContext) -> dict[str, Any]:
+        analyzed = 0
+        with session_scope() as session:
+            products = (
+                session.query(Product)
+                .outerjoin(MarketAnalysis, MarketAnalysis.product_id == Product.id)
+                .filter(MarketAnalysis.id.is_(None))
+                .filter(Product.opportunity_score.isnot(None))
+                .limit(self._batch_size)
+                .all()
+            )
+            for product in products:
+                data = self._analyze(product)
+                if data is None:
+                    continue
+                session.add(
+                    MarketAnalysis(
+                        product_id=product.id,
+                        market_size=data.get("market_size"),
+                        growth_rate=data.get("growth_rate"),
+                        geography=data.get("geography"),
+                        summary=data.get("summary"),
+                        generated_by=self.name,
                     )
-                    analyzed += 1
+                )
+                analyzed += 1
 
-            self.logger.info("market_completed", analyzed=analyzed)
-            return AgentResult(agent_name=self.name, success=True, output={"analyzed": analyzed})
-        except Exception as exc:
-            self.logger.error("market_failed", error=str(exc))
-            return AgentResult(agent_name=self.name, success=False, error=str(exc))
+        return {"analyzed": analyzed}
 
     def _analyze(self, product: Product) -> dict | None:
         prompt = (

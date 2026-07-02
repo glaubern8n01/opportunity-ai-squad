@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from opportunity_squad.core.interfaces.agent import Agent, AgentContext, AgentResult
+from typing import Any
+
+from opportunity_squad.core.interfaces.agent import Agent, AgentContext
 from opportunity_squad.db.models.product import Product, ProductVersion
 from opportunity_squad.db.session import session_scope
 
@@ -14,30 +16,23 @@ class DiscoveryAgent(Agent):
         super().__init__()
         self._min_score = min_score
 
-    def run(self, context: AgentContext) -> AgentResult:
-        try:
-            qualified = 0
-            with session_scope() as session:
-                products = session.query(Product).filter_by(opportunity_score=None).all()
-                for product in products:
-                    latest_version = (
-                        session.query(ProductVersion)
-                        .filter_by(product_id=product.id)
-                        .order_by(ProductVersion.captured_at.desc())
-                        .first()
-                    )
-                    pre_score = self._heuristic_score(latest_version)
-                    product.opportunity_score = pre_score
-                    if pre_score >= self._min_score:
-                        qualified += 1
+    def execute(self, context: AgentContext) -> dict[str, Any]:
+        qualified = 0
+        with session_scope() as session:
+            products = session.query(Product).filter_by(opportunity_score=None).all()
+            for product in products:
+                latest_version = (
+                    session.query(ProductVersion)
+                    .filter_by(product_id=product.id)
+                    .order_by(ProductVersion.captured_at.desc())
+                    .first()
+                )
+                pre_score = self._heuristic_score(latest_version)
+                product.opportunity_score = pre_score
+                if pre_score >= self._min_score:
+                    qualified += 1
 
-            self.logger.info("discovery_completed", qualified=qualified)
-            return AgentResult(
-                agent_name=self.name, success=True, output={"qualified": qualified}
-            )
-        except Exception as exc:
-            self.logger.error("discovery_failed", error=str(exc))
-            return AgentResult(agent_name=self.name, success=False, error=str(exc))
+        return {"qualified": qualified}
 
     @staticmethod
     def _heuristic_score(version: ProductVersion | None) -> float:

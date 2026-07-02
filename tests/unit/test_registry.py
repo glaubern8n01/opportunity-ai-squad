@@ -1,7 +1,7 @@
 import pytest
 from plugins.registry import discover, discover_all, load_plugin
 
-from opportunity_squad.core.exceptions import PluginNotFoundError
+from opportunity_squad.core.exceptions import PluginLoadError, PluginNotFoundError
 
 
 def test_discover_finds_known_source_plugins():
@@ -28,3 +28,8 @@ def test_load_plugin_instantiates_and_initializes():
     connector = load_plugin("sources", "hacker_news")
     assert connector.name == "hacker_news"
     connector.shutdown()
+
+
+def test_load_plugin_raises_when_required_config_missing():
+    with pytest.raises(PluginLoadError, match="api_key"):
+        load_plugin("ai", "anthropic", config={})

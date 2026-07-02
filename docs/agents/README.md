@@ -1,9 +1,13 @@
 # Agentes
 
-Todos implementam `core.interfaces.agent.Agent` (`run(context: AgentContext) ->
-AgentResult`, nunca lança exceção). Dependências (plugins) são injetadas via
-construtor em `main.py:build_agents`. Ver [ARCHITECTURE.md](../../ARCHITECTURE.md)
-para o diagrama de camadas e [PROMPTS.md](../../PROMPTS.md) para os prompts de IA.
+Todos implementam `core.interfaces.agent.Agent`: o método concreto `execute(context:
+AgentContext) -> dict` contém a lógica de cada agente e pode lançar livremente — o
+`run()` da classe base (template method) captura qualquer exceção e converte em
+`AgentResult(success=False, error=...)`, além de logar `<nome>_completed`/`<nome>_failed`
+automaticamente. Nenhum agente concreto repete esse boilerplate. Dependências (plugins)
+são injetadas via construtor em `main.py:build_agents`. Ver
+[ARCHITECTURE.md](../../ARCHITECTURE.md) para o diagrama de camadas e
+[PROMPTS.md](../../PROMPTS.md) para os prompts de IA.
 
 | Agente | Arquivo | IA? | O que faz |
 | --- | --- | --- | --- |

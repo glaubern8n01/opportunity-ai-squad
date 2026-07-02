@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import json
+from typing import Any
 
-from opportunity_squad.core.interfaces.agent import Agent, AgentContext, AgentResult
+from opportunity_squad.core.interfaces.agent import Agent, AgentContext
 from opportunity_squad.core.interfaces.ai_provider import AIProvider, ModelTier
 from opportunity_squad.db.models.enums import IdeaStatus, MvpStatus
 from opportunity_squad.db.models.ideation import Feature, Idea, MvpProject
@@ -26,39 +27,34 @@ class MvpAgent(Agent):
         self._min_score = min_score
         self._batch_size = batch_size
 
-    def run(self, context: AgentContext) -> AgentResult:
-        try:
-            created = 0
-            with session_scope() as session:
-                ideas = (
-                    session.query(Idea)
-                    .filter(Idea.status == IdeaStatus.VALIDATED)
-                    .filter(Idea.opportunity_score >= self._min_score)
-                    .limit(self._batch_size)
-                    .all()
+    def execute(self, context: AgentContext) -> dict[str, Any]:
+        created = 0
+        with session_scope() as session:
+            ideas = (
+                session.query(Idea)
+                .filter(Idea.status == IdeaStatus.VALIDATED)
+                .filter(Idea.opportunity_score >= self._min_score)
+                .limit(self._batch_size)
+                .all()
+            )
+            for idea in ideas:
+                plan = self._draft_plan(idea)
+                if not plan or not plan.get("name"):
+                    continue
+                mvp = MvpProject(
+                    idea_id=idea.id,
+                    name=plan["name"],
+                    stack=plan.get("stack"),
+                    status=MvpStatus.PLANNING,
                 )
-                for idea in ideas:
-                    plan = self._draft_plan(idea)
-                    if not plan or not plan.get("name"):
-                        continue
-                    mvp = MvpProject(
-                        idea_id=idea.id,
-                        name=plan["name"],
-                        stack=plan.get("stack"),
-                        status=MvpStatus.PLANNING,
-                    )
-                    session.add(mvp)
-                    session.flush()
-                    for feature_name in plan.get("features", []):
-                        session.add(Feature(mvp_project_id=mvp.id, name=feature_name))
-                    idea.status = IdeaStatus.IN_PROGRESS
-                    created += 1
+                session.add(mvp)
+                session.flush()
+                for feature_name in plan.get("features", []):
+                    session.add(Feature(mvp_project_id=mvp.id, name=feature_name))
+                idea.status = IdeaStatus.IN_PROGRESS
+                created += 1
 
-            self.logger.info("mvp_completed", created=created)
-            return AgentResult(agent_name=self.name, success=True, output={"created": created})
-        except Exception as exc:
-            self.logger.error("mvp_failed", error=str(exc))
-            return AgentResult(agent_name=self.name, success=False, error=str(exc))
+        return {"created": created}
 
     def _draft_plan(self, idea: Idea) -> dict | None:
         prompt = f"Ideia: {idea.title}\nDescrição: {idea.description or ''}"

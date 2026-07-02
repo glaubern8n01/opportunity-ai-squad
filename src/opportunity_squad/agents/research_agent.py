@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import json
+from typing import Any
 
-from opportunity_squad.core.interfaces.agent import Agent, AgentContext, AgentResult
+from opportunity_squad.core.interfaces.agent import Agent, AgentContext
 from opportunity_squad.core.interfaces.ai_provider import AIProvider, ModelTier
 from opportunity_squad.db.models.analysis import Analysis
 from opportunity_squad.db.models.product import Product
@@ -30,55 +31,41 @@ class ResearchAgent(Agent):
         super().__init__()
         self._ai = ai_provider
 
-    def run(self, context: AgentContext) -> AgentResult:
+    def execute(self, context: AgentContext) -> dict[str, Any]:
         product_id = context.data.get("product_id")
         if not product_id:
-            return AgentResult(
-                agent_name=self.name,
-                success=False,
-                error="context.data['product_id'] é obrigatório",
+            raise ValueError("context.data['product_id'] é obrigatório")
+
+        with session_scope() as session:
+            product = session.get(Product, product_id)
+            if product is None:
+                raise ValueError(f"produto {product_id} não encontrado")
+
+            findings = self._research(product)
+            if findings is None:
+                raise ValueError("IA não retornou JSON válido")
+
+            analysis = (
+                session.query(Analysis)
+                .filter_by(product_id=product.id, agent_name=self.name)
+                .one_or_none()
             )
-        try:
-            with session_scope() as session:
-                product = session.get(Product, product_id)
-                if product is None:
-                    return AgentResult(
-                        agent_name=self.name,
-                        success=False,
-                        error=f"produto {product_id} não encontrado",
-                    )
+            if analysis is None:
+                analysis = Analysis(product_id=product.id, agent_name=self.name)
+                session.add(analysis)
 
-                findings = self._research(product)
-                if findings is None:
-                    return AgentResult(
-                        agent_name=self.name, success=False, error="IA não retornou JSON válido"
-                    )
+            analysis.strengths = findings.get("strengths")
+            analysis.weaknesses = findings.get("weaknesses")
+            analysis.ux_notes = findings.get("ux_notes")
+            analysis.performance_notes = findings.get("performance_notes")
+            analysis.copy_difficulty = findings.get("copy_difficulty")
+            analysis.technical_complexity = findings.get("technical_complexity")
+            analysis.market_br_potential = findings.get("market_br_potential")
+            analysis.market_intl_potential = findings.get("market_intl_potential")
+            analysis.saas_potential = findings.get("saas_potential")
+            analysis.summary = findings.get("summary")
 
-                analysis = (
-                    session.query(Analysis)
-                    .filter_by(product_id=product.id, agent_name=self.name)
-                    .one_or_none()
-                )
-                if analysis is None:
-                    analysis = Analysis(product_id=product.id, agent_name=self.name)
-                    session.add(analysis)
-
-                analysis.strengths = findings.get("strengths")
-                analysis.weaknesses = findings.get("weaknesses")
-                analysis.ux_notes = findings.get("ux_notes")
-                analysis.performance_notes = findings.get("performance_notes")
-                analysis.copy_difficulty = findings.get("copy_difficulty")
-                analysis.technical_complexity = findings.get("technical_complexity")
-                analysis.market_br_potential = findings.get("market_br_potential")
-                analysis.market_intl_potential = findings.get("market_intl_potential")
-                analysis.saas_potential = findings.get("saas_potential")
-                analysis.summary = findings.get("summary")
-
-            self.logger.info("research_completed", product_id=product_id)
-            return AgentResult(agent_name=self.name, success=True, output={"product_id": product_id})
-        except Exception as exc:
-            self.logger.error("research_failed", error=str(exc))
-            return AgentResult(agent_name=self.name, success=False, error=str(exc))
+        return {"product_id": product_id}
 
     def _research(self, product: Product) -> dict | None:
         prompt = (

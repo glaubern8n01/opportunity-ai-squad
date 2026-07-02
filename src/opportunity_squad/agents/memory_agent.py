@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 from opportunity_squad.core.interfaces.agent import Agent, AgentContext, AgentResult
 
@@ -14,16 +15,11 @@ _MEMORY_FILE = _REPO_ROOT / "MEMORY.md"
 class MemoryAgent(Agent):
     name = "memory"
 
-    def run(self, context: AgentContext) -> AgentResult:
-        try:
-            results: list[AgentResult] = context.data.get("run_results", [])
-            entry = self._render_entry(context.run_id, results)
-            self._append(entry)
-            self.logger.info("memory_completed", run_id=context.run_id)
-            return AgentResult(agent_name=self.name, success=True, output={"run_id": context.run_id})
-        except Exception as exc:
-            self.logger.error("memory_failed", error=str(exc))
-            return AgentResult(agent_name=self.name, success=False, error=str(exc))
+    def execute(self, context: AgentContext) -> dict[str, Any]:
+        results: list[AgentResult] = context.data.get("run_results", [])
+        entry = self._render_entry(context.run_id, results)
+        self._append(entry)
+        return {"run_id": context.run_id}
 
     @staticmethod
     def _render_entry(run_id: str, results: list[AgentResult]) -> str:

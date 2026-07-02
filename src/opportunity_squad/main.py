@@ -1,6 +1,9 @@
 """Composition root: carrega config, monta plugins e agentes, e inicia o scheduler.
 
-Este é o único lugar do Core que conhece `plugins.registry` — todo o resto do
+Este é o único lugar que carrega plugins para USO (injeta instâncias concretas nos
+agentes). `DocumentationAgent` e `api/app.py` também referenciam `plugins.registry`,
+mas só para introspecção read-only (listar plugins existentes) — nenhum dos dois
+importa ou depende da lógica de negócio de um plugin específico. Todo o resto do
 domínio (agents, scoring) depende apenas das interfaces em `core.interfaces`.
 """
 

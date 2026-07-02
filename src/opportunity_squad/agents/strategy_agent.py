@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import json
+from typing import Any
 
-from opportunity_squad.core.interfaces.agent import Agent, AgentContext, AgentResult
+from opportunity_squad.core.interfaces.agent import Agent, AgentContext
 from opportunity_squad.core.interfaces.ai_provider import AIProvider, ModelTier
 from opportunity_squad.db.models.analysis import Analysis
 from opportunity_squad.db.models.product import Product
@@ -43,40 +44,35 @@ class StrategyAgent(Agent):
         self._ai = ai_provider
         self._batch_size = batch_size
 
-    def run(self, context: AgentContext) -> AgentResult:
-        try:
-            scored = 0
-            with session_scope() as session:
-                products = (
-                    session.query(Product)
-                    .outerjoin(Analysis, Analysis.product_id == Product.id)
-                    .filter(Analysis.id.is_(None))
-                    .filter(Product.opportunity_score.isnot(None))
-                    .limit(self._batch_size)
-                    .all()
-                )
-                for product in products:
-                    criteria = self._estimate_criteria(product)
-                    if criteria is None:
-                        continue
-                    result = calculate_opportunity_score(criteria)
-                    session.add(
-                        Analysis(
-                            product_id=product.id,
-                            agent_name=self.name,
-                            final_score=result.final_score,
-                            score_breakdown=result.model_dump(),
-                            summary=result.notes,
-                        )
+    def execute(self, context: AgentContext) -> dict[str, Any]:
+        scored = 0
+        with session_scope() as session:
+            products = (
+                session.query(Product)
+                .outerjoin(Analysis, Analysis.product_id == Product.id)
+                .filter(Analysis.id.is_(None))
+                .filter(Product.opportunity_score.isnot(None))
+                .limit(self._batch_size)
+                .all()
+            )
+            for product in products:
+                criteria = self._estimate_criteria(product)
+                if criteria is None:
+                    continue
+                result = calculate_opportunity_score(criteria)
+                session.add(
+                    Analysis(
+                        product_id=product.id,
+                        agent_name=self.name,
+                        final_score=result.final_score,
+                        score_breakdown=result.model_dump(),
+                        summary=result.notes,
                     )
-                    product.opportunity_score = result.final_score
-                    scored += 1
+                )
+                product.opportunity_score = result.final_score
+                scored += 1
 
-            self.logger.info("strategy_completed", scored=scored)
-            return AgentResult(agent_name=self.name, success=True, output={"scored": scored})
-        except Exception as exc:
-            self.logger.error("strategy_failed", error=str(exc))
-            return AgentResult(agent_name=self.name, success=False, error=str(exc))
+        return {"scored": scored}
 
     def _estimate_criteria(self, product: Product) -> dict[str, float] | None:
         prompt = (

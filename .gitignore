@@ -6,6 +6,7 @@
 *.key
 secrets/
 credentials.json
+.pgpass
 
 # Python
 __pycache__/
@@ -52,6 +53,11 @@ docker-compose.override.yml
 # OS
 .DS_Store
 Thumbs.db
+Desktop.ini
+
+# Temp / editor scratch files
+*.tmp
+*.bak
 
 # Claude / agent tooling local state
 .claude/settings.local.json

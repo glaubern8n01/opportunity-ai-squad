@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
-from opportunity_squad.core.interfaces.agent import Agent, AgentContext, AgentResult
+from opportunity_squad.core.interfaces.agent import Agent, AgentContext
 from opportunity_squad.core.interfaces.report_generator import ReportGenerator, ReportPeriod
 from opportunity_squad.db.models.enums import ProductStatus, ReportPeriodEnum
 from opportunity_squad.db.models.product import Product
@@ -21,59 +22,50 @@ class ReportAgent(Agent):
         super().__init__()
         self._generator = report_generator
 
-    def run(self, context: AgentContext) -> AgentResult:
+    def execute(self, context: AgentContext) -> dict[str, Any]:
         period = ReportPeriod(context.data.get("period", ReportPeriod.DAILY.value))
-        try:
-            with session_scope() as session:
-                since = datetime.now(UTC) - timedelta(days=_WINDOW_DAYS[period])
-                top_products = (
-                    session.query(Product)
-                    .filter(Product.first_seen_at >= since)
-                    .filter(Product.opportunity_score.isnot(None))
-                    .order_by(Product.opportunity_score.desc())
-                    .limit(10)
-                    .all()
-                )
-                promising = (
-                    session.query(Product)
-                    .filter(Product.status == ProductStatus.PROMISING)
-                    .order_by(Product.opportunity_score.desc().nulls_last())
-                    .limit(10)
-                    .all()
-                )
-                declining = (
-                    session.query(Product)
-                    .filter(Product.status == ProductStatus.DECLINING)
-                    .limit(10)
-                    .all()
-                )
-
-                data = {
-                    "generated_at": datetime.now(UTC),
-                    "top_products": [_to_item(p) for p in top_products],
-                    "promising_products": [_to_item(p) for p in promising],
-                    "declining_products": [_to_item(p) for p in declining],
-                }
-                content = self._generator.generate(period, data)
-
-                report_row = Report(
-                    period=ReportPeriodEnum(period.value),
-                    format=self._generator.file_extension,
-                    content=content,
-                )
-                session.add(report_row)
-                session.flush()
-                report_id = report_row.id
-
-            self.logger.info("report_completed", period=period.value, report_id=report_id)
-            return AgentResult(
-                agent_name=self.name,
-                success=True,
-                output={"period": period.value, "report_id": report_id, "content": content},
+        with session_scope() as session:
+            since = datetime.now(UTC) - timedelta(days=_WINDOW_DAYS[period])
+            top_products = (
+                session.query(Product)
+                .filter(Product.first_seen_at >= since)
+                .filter(Product.opportunity_score.isnot(None))
+                .order_by(Product.opportunity_score.desc())
+                .limit(10)
+                .all()
             )
-        except Exception as exc:
-            self.logger.error("report_failed", error=str(exc))
-            return AgentResult(agent_name=self.name, success=False, error=str(exc))
+            promising = (
+                session.query(Product)
+                .filter(Product.status == ProductStatus.PROMISING)
+                .order_by(Product.opportunity_score.desc().nulls_last())
+                .limit(10)
+                .all()
+            )
+            declining = (
+                session.query(Product)
+                .filter(Product.status == ProductStatus.DECLINING)
+                .limit(10)
+                .all()
+            )
+
+            data = {
+                "generated_at": datetime.now(UTC),
+                "top_products": [_to_item(p) for p in top_products],
+                "promising_products": [_to_item(p) for p in promising],
+                "declining_products": [_to_item(p) for p in declining],
+            }
+            content = self._generator.generate(period, data)
+
+            report_row = Report(
+                period=ReportPeriodEnum(period.value),
+                format=self._generator.file_extension,
+                content=content,
+            )
+            session.add(report_row)
+            session.flush()
+            report_id = report_row.id
+
+        return {"period": period.value, "report_id": report_id}
 
 
 def _to_item(product: Product) -> dict:

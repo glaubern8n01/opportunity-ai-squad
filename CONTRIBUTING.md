@@ -22,9 +22,12 @@ uv run pytest                  # roda a suíte de testes
 ## Como criar um novo agente
 
 1. Crie `src/opportunity_squad/agents/meu_agente.py` implementando
-   `core.interfaces.agent.Agent` (método `run(context: AgentContext) -> AgentResult`).
-2. Nunca deixe `run()` propagar exceção — capture e retorne `AgentResult(success=False, error=...)`.
-3. Injete dependências (plugins) via `__init__`, nunca importe `plugins.registry` dentro do agente.
+   `core.interfaces.agent.Agent` — método `execute(context: AgentContext) -> dict`.
+2. Pode lançar exceção livremente: `run()` (herdado, não sobrescreva) já captura,
+   loga e converte em `AgentResult(success=False, error=...)`. Só retorne o dict de
+   output do agente — o `AgentResult` de sucesso é montado pela classe base.
+3. Injete dependências (plugins) via `__init__`, nunca importe `plugins.registry` dentro do agente
+   (exceção: introspecção read-only do catálogo de plugins, como faz `DocumentationAgent`).
 4. Registre o agente em `src/opportunity_squad/agents/__init__.py` e monte-o em `main.py`.
 5. Adicione-o a um pipeline em `scheduler/jobs.py` (`SquadOrchestrator`) se ele for
    parte de um fluxo agendado.

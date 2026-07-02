@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from opportunity_squad.core.entities.product import NormalizedProduct
-from opportunity_squad.core.interfaces.agent import Agent, AgentContext, AgentResult
+from opportunity_squad.core.interfaces.agent import Agent, AgentContext
 from opportunity_squad.core.interfaces.source import SourceConnector
 from opportunity_squad.db.models.product import Product, ProductVersion
 from opportunity_squad.db.models.source import Source
@@ -17,30 +19,23 @@ class ScoutAgent(Agent):
         super().__init__()
         self._sources = sources
 
-    def run(self, context: AgentContext) -> AgentResult:
-        try:
-            discovered = 0
-            with session_scope() as session:
-                for source_name, connector in self._sources.items():
-                    source_row = session.query(Source).filter_by(name=source_name).one_or_none()
-                    if source_row is None:
-                        source_row = Source(name=source_name, category="sources", is_enabled=True)
-                        session.add(source_row)
-                        session.flush()
+    def execute(self, context: AgentContext) -> dict[str, Any]:
+        discovered = 0
+        with session_scope() as session:
+            for source_name, connector in self._sources.items():
+                source_row = session.query(Source).filter_by(name=source_name).one_or_none()
+                if source_row is None:
+                    source_row = Source(name=source_name, category="sources", is_enabled=True)
+                    session.add(source_row)
+                    session.flush()
 
-                    for product in connector.search(**context.data.get(source_name, {})):
-                        if not connector.validate(product):
-                            continue
-                        self._upsert(session, source_row.id, product)
-                        discovered += 1
+                for product in connector.search(**context.data.get(source_name, {})):
+                    if not connector.validate(product):
+                        continue
+                    self._upsert(session, source_row.id, product)
+                    discovered += 1
 
-            self.logger.info("scout_completed", discovered=discovered)
-            return AgentResult(
-                agent_name=self.name, success=True, output={"discovered": discovered}
-            )
-        except Exception as exc:
-            self.logger.error("scout_failed", error=str(exc))
-            return AgentResult(agent_name=self.name, success=False, error=str(exc))
+        return {"discovered": discovered}
 
     @staticmethod
     def _upsert(session, source_id: int, product: NormalizedProduct) -> Product:

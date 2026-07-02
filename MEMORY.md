@@ -71,3 +71,62 @@ diretamente pelo terminal, sem MVP descartável.
 3. Preencher `ANTHROPIC_API_KEY`/`TELEGRAM_BOT_TOKEN`/`TELEGRAM_CHAT_ID` no `.env`.
 4. Configurar GitHub Actions (CI, CodeQL, Dependabot, Gitleaks).
 5. Confirmar com o usuário antes do primeiro `git push` para o repositório público.
+
+## Sessão de revisão final pré-push — 2026-07-02
+
+**Objetivo**: revisão estrutural completa (arquitetura, duplicação, segurança,
+documentação, organização de pastas) antes do primeiro push para o repositório
+público, a pedido do usuário.
+
+**O que foi feito**:
+- Instalado e rodado `gitleaks detect` real sobre o histórico do git (além do grep
+  manual por padrões de segredo) — nenhum leak encontrado.
+- Confirmado via `grep`/análise estática que `core/` e `agents/` nunca importam
+  `plugins/` diretamente (exceto `DocumentationAgent`/`api/app.py`, que fazem apenas
+  introspecção read-only do catálogo, não uso de lógica de um plugin específico) e
+  que `plugins/` nunca importa `agents/`/`scheduler/` — direção de dependência (DIP)
+  íntegra.
+- Refatorado `core/interfaces/agent.py`: `Agent.run()` virou um template method que
+  centraliza o try/except e o log de sucesso/falha; os 17 agentes agora implementam
+  `execute(context) -> dict` e podem lançar livremente. Removeu ~75 linhas de
+  boilerplate idêntico duplicado em todos os agentes.
+- `ReportAgent` não colocava mais o conteúdo do relatório no `AgentResult.output`
+  (era gerado mas nunca consumido — `NotificationAgent` já busca via `report_id` no
+  banco) — removido por ser dado morto.
+- `plugins/registry.py::load_plugin()` passou a validar `manifest.requires_config`
+  antes de instanciar o plugin, com erro claro (`PluginLoadError`) em vez de deixar
+  cada plugin descobrir isso sozinho dentro de `initialize()`. Antes, esse campo do
+  `plugin.yaml` era só documentação, nunca era checado.
+- Corrigida imprecisão na documentação: `main.py`, `ARCHITECTURE.md`,
+  `docs/agents/README.md` e `CONTRIBUTING.md` diziam que `main.py` era o "único
+  lugar" que conhece `plugins.registry`, mas isso já não era verdade
+  (`DocumentationAgent`/`api/app.py` também o fazem, por razões legítimas).
+- `docs/reports/`, `docs/research/`, `docs/prompts/` existiam no disco mas, por
+  estarem vazias, não eram rastreadas pelo git (git não versiona diretórios vazios)
+  — ficariam ausentes no primeiro push. Adicionado um `README.md` explicativo em
+  cada uma.
+- Reforçado `.gitignore` (`.pgpass`, `*.tmp`, `*.bak`, `Desktop.ini`).
+- Suíte re-executada do zero após todas as mudanças: 19/19 testes, `ruff` e `mypy`
+  limpos, migration reaplicada localmente sem erro.
+
+**Arquivos alterados**: `core/interfaces/agent.py`, os 17 arquivos em `agents/`,
+`plugins/registry.py`, `main.py`, `.gitignore`, `ARCHITECTURE.md`, `CONTRIBUTING.md`,
+`docs/agents/README.md`, `CHANGELOG.md`, `tests/unit/test_registry.py`, e três novos
+`docs/{reports,research,prompts}/README.md`.
+
+**Problemas encontrados**: nenhum bug funcional novo — os achados foram todos de
+qualidade/manutenibilidade (duplicação, metadado não utilizado, docs desatualizadas,
+pastas vazias fora do git), não de correção.
+
+**Decisões tomadas**:
+- Não extraí um helper para o padrão `json.loads(response)` com fallback (repetido
+  em 7 agentes de IA) — é só 4-5 linhas por agente e a mensagem de warning varia por
+  contexto; extrair criaria uma abstração para economizar pouco, então mantive
+  inline em cada agente.
+- Mantive `DocumentationAgent`/`api/app.py` importando `plugins.registry`
+  diretamente em vez de criar uma interface só para introspecção — são os únicos
+  dois casos, ambos read-only, e uma interface para isso seria abstração prematura.
+
+**Próximos passos**: aguardando o usuário concluir a autenticação OAuth do MCP do
+Supabase para aplicar a migration no banco real; aguardando aprovação explícita do
+usuário para o primeiro `git push`.

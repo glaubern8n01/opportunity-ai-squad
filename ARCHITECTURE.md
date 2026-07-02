@@ -14,7 +14,9 @@
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │  main.py (composition root)                                     │
-│  — único lugar do Core que conhece plugins.registry              │
+│  — único lugar que carrega plugins para USO nos agentes.         │
+│    (DocumentationAgent e api/app.py só fazem introspecção        │
+│    read-only do registry, sem depender de lógica de um plugin)   │
 └───────────────────────────┬─────────────────────────────────────┘
                              │ injeta instâncias de plugins nos agentes
                              ▼

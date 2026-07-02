@@ -96,9 +96,16 @@ def load_plugin(category: str, name: str, config: dict[str, Any] | None = None) 
             f"Plugin '{name}' não encontrado em plugins/{category}/. Disponíveis: {available}"
         )
     manifest = manifests[name]
+    config = config or {}
+    missing = [key for key in manifest.requires_config if not config.get(key)]
+    if missing:
+        raise PluginLoadError(
+            f"Plugin '{name}' requer config ausente: {missing} (ver plugin.yaml:requires_config)"
+        )
+
     plugin_class = _import_entry_point(manifest.entry_point)
     instance = plugin_class()
-    instance.initialize(config or {})
+    instance.initialize(config)
     logger.info("plugin_loaded", category=category, name=name)
     return instance
 

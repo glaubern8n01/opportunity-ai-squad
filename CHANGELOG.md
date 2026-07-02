@@ -22,10 +22,13 @@ Este projeto segue [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 - Os 17 agentes do squad (Scout, Discovery, Review, Sentiment, Trend, Competitor,
   Market, Gap, Strategy, MVP, Architecture, Research, Report, Notification, Memory,
   Security, Documentation) e o orquestrador (`SquadOrchestrator` + APScheduler).
+  `Agent.run()` é um template method na classe base — agentes concretos implementam
+  só `execute()`, sem repetir try/except/log em cada um.
 - Motor de Opportunity Score (0-10) com os 13 critérios do briefing.
 - Docker Compose (Postgres local + app) e Dockerfile de produção multi-stage com `uv`.
-- Suíte de testes (pytest) com 18 testes cobrindo scoring, config, plugin registry,
-  conectores de fonte (mockados com `respx`) e agentes (contra Postgres real).
+- Suíte de testes (pytest) com 19 testes cobrindo scoring, config, plugin registry
+  (incluindo validação de `requires_config`), conectores de fonte (mockados com
+  `respx`) e agentes (contra Postgres real).
 - `.env.example`, `.gitignore`, `SECURITY.md` e checagem de segredos do Security Agent.
 - MCP do Supabase configurado no escopo do projeto (`.mcp.json`), apontando para um
   banco dedicado a este projeto.

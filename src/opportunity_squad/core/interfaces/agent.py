@@ -31,13 +31,29 @@ class AgentResult:
 
 
 class Agent(ABC):
-    """Unidade de responsabilidade única do squad (Scout, Discovery, Review, ...)."""
+    """Unidade de responsabilidade única do squad (Scout, Discovery, Review, ...).
+
+    `run()` é um template method: centraliza o try/except e o log de sucesso/falha
+    para que nenhum agente concreto precise repetir esse boilerplate (nem possa
+    esquecer de capturar uma exceção). Agentes concretos implementam `execute()`,
+    que pode lançar livremente — qualquer exceção vira `AgentResult(success=False)`.
+    """
 
     name: str = "unnamed_agent"
 
     def __init__(self) -> None:
         self.logger = structlog.get_logger(f"agent.{self.name}")
 
-    @abstractmethod
     def run(self, context: AgentContext) -> AgentResult:
-        """Executa a responsabilidade do agente e retorna o resultado, sem lançar exceção."""
+        try:
+            output = self.execute(context) or {}
+        except Exception as exc:  # noqa: BLE001 - fronteira do agente: nunca propaga
+            self.logger.error(f"{self.name}_failed", error=str(exc))
+            return AgentResult(agent_name=self.name, success=False, error=str(exc))
+
+        self.logger.info(f"{self.name}_completed", **output)
+        return AgentResult(agent_name=self.name, success=True, output=output)
+
+    @abstractmethod
+    def execute(self, context: AgentContext) -> dict[str, Any]:
+        """Implementa a lógica do agente. Pode lançar — `run()` converte em `AgentResult`."""

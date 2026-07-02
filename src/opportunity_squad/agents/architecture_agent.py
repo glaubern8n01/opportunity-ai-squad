@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import json
+from typing import Any
 
-from opportunity_squad.core.interfaces.agent import Agent, AgentContext, AgentResult
+from opportunity_squad.core.interfaces.agent import Agent, AgentContext
 from opportunity_squad.core.interfaces.ai_provider import AIProvider, ModelTier
 from opportunity_squad.db.models.enums import MvpStatus
 from opportunity_squad.db.models.ideation import MvpProject, Roadmap
@@ -25,36 +26,31 @@ class ArchitectureAgent(Agent):
         self._ai = ai_provider
         self._batch_size = batch_size
 
-    def run(self, context: AgentContext) -> AgentResult:
-        try:
-            created = 0
-            with session_scope() as session:
-                projects = (
-                    session.query(MvpProject)
-                    .outerjoin(Roadmap, Roadmap.mvp_project_id == MvpProject.id)
-                    .filter(Roadmap.id.is_(None))
-                    .filter(MvpProject.status == MvpStatus.PLANNING)
-                    .limit(self._batch_size)
-                    .all()
-                )
-                for project in projects:
-                    milestones = self._plan_milestones(project)
-                    if not milestones:
-                        continue
-                    session.add(
-                        Roadmap(
-                            mvp_project_id=project.id,
-                            title=f"Roadmap — {project.name}",
-                            milestones=milestones,
-                        )
+    def execute(self, context: AgentContext) -> dict[str, Any]:
+        created = 0
+        with session_scope() as session:
+            projects = (
+                session.query(MvpProject)
+                .outerjoin(Roadmap, Roadmap.mvp_project_id == MvpProject.id)
+                .filter(Roadmap.id.is_(None))
+                .filter(MvpProject.status == MvpStatus.PLANNING)
+                .limit(self._batch_size)
+                .all()
+            )
+            for project in projects:
+                milestones = self._plan_milestones(project)
+                if not milestones:
+                    continue
+                session.add(
+                    Roadmap(
+                        mvp_project_id=project.id,
+                        title=f"Roadmap — {project.name}",
+                        milestones=milestones,
                     )
-                    created += 1
+                )
+                created += 1
 
-            self.logger.info("architecture_completed", created=created)
-            return AgentResult(agent_name=self.name, success=True, output={"created": created})
-        except Exception as exc:
-            self.logger.error("architecture_failed", error=str(exc))
-            return AgentResult(agent_name=self.name, success=False, error=str(exc))
+        return {"created": created}
 
     def _plan_milestones(self, project: MvpProject) -> list[dict] | None:
         prompt = f"MVP: {project.name}\nStack: {project.stack or 'a definir'}"

@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from opportunity_squad.core.interfaces.agent import Agent, AgentContext, AgentResult
+from typing import Any
+
+from opportunity_squad.core.interfaces.agent import Agent, AgentContext
 from opportunity_squad.db.models.enums import ProductStatus, TrendDirection
 from opportunity_squad.db.models.market import TrendAnalysis
 from opportunity_squad.db.models.product import Product, ProductVersion
@@ -18,40 +20,35 @@ _STATUS_FOR_DIRECTION = {
 class TrendAgent(Agent):
     name = "trend"
 
-    def run(self, context: AgentContext) -> AgentResult:
-        try:
-            analyzed = 0
-            with session_scope() as session:
-                for product in session.query(Product).all():
-                    versions = (
-                        session.query(ProductVersion)
-                        .filter_by(product_id=product.id)
-                        .order_by(ProductVersion.captured_at.desc())
-                        .limit(2)
-                        .all()
+    def execute(self, context: AgentContext) -> dict[str, Any]:
+        analyzed = 0
+        with session_scope() as session:
+            for product in session.query(Product).all():
+                versions = (
+                    session.query(ProductVersion)
+                    .filter_by(product_id=product.id)
+                    .order_by(ProductVersion.captured_at.desc())
+                    .limit(2)
+                    .all()
+                )
+                if len(versions) < 2:
+                    continue
+
+                latest, previous = versions
+                direction, score = self._compare(latest, previous)
+                product.status = _STATUS_FOR_DIRECTION[direction]
+
+                session.add(
+                    TrendAnalysis(
+                        keyword=product.name,
+                        direction=direction,
+                        score=score,
+                        window="latest_vs_previous",
                     )
-                    if len(versions) < 2:
-                        continue
+                )
+                analyzed += 1
 
-                    latest, previous = versions
-                    direction, score = self._compare(latest, previous)
-                    product.status = _STATUS_FOR_DIRECTION[direction]
-
-                    session.add(
-                        TrendAnalysis(
-                            keyword=product.name,
-                            direction=direction,
-                            score=score,
-                            window="latest_vs_previous",
-                        )
-                    )
-                    analyzed += 1
-
-            self.logger.info("trend_completed", analyzed=analyzed)
-            return AgentResult(agent_name=self.name, success=True, output={"analyzed": analyzed})
-        except Exception as exc:
-            self.logger.error("trend_failed", error=str(exc))
-            return AgentResult(agent_name=self.name, success=False, error=str(exc))
+        return {"analyzed": analyzed}
 
     @staticmethod
     def _compare(

@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import json
+from typing import Any
 
-from opportunity_squad.core.interfaces.agent import Agent, AgentContext, AgentResult
+from opportunity_squad.core.interfaces.agent import Agent, AgentContext
 from opportunity_squad.core.interfaces.ai_provider import AIProvider, ModelTier
 from opportunity_squad.db.models.competitor import Competitor
 from opportunity_squad.db.models.product import Product
@@ -25,34 +26,29 @@ class CompetitorAgent(Agent):
         self._ai = ai_provider
         self._batch_size = batch_size
 
-    def run(self, context: AgentContext) -> AgentResult:
-        try:
-            mapped = 0
-            with session_scope() as session:
-                products = (
-                    session.query(Product)
-                    .outerjoin(Competitor, Competitor.product_id == Product.id)
-                    .filter(Competitor.id.is_(None))
-                    .filter(Product.opportunity_score.isnot(None))
-                    .limit(self._batch_size)
-                    .all()
-                )
-                for product in products:
-                    for competitor in self._find_competitors(product):
-                        session.add(
-                            Competitor(
-                                product_id=product.id,
-                                name=competitor.get("name", "?"),
-                                url=competitor.get("url"),
-                            )
+    def execute(self, context: AgentContext) -> dict[str, Any]:
+        mapped = 0
+        with session_scope() as session:
+            products = (
+                session.query(Product)
+                .outerjoin(Competitor, Competitor.product_id == Product.id)
+                .filter(Competitor.id.is_(None))
+                .filter(Product.opportunity_score.isnot(None))
+                .limit(self._batch_size)
+                .all()
+            )
+            for product in products:
+                for competitor in self._find_competitors(product):
+                    session.add(
+                        Competitor(
+                            product_id=product.id,
+                            name=competitor.get("name", "?"),
+                            url=competitor.get("url"),
                         )
-                        mapped += 1
+                    )
+                    mapped += 1
 
-            self.logger.info("competitor_completed", mapped=mapped)
-            return AgentResult(agent_name=self.name, success=True, output={"mapped": mapped})
-        except Exception as exc:
-            self.logger.error("competitor_failed", error=str(exc))
-            return AgentResult(agent_name=self.name, success=False, error=str(exc))
+        return {"mapped": mapped}
 
     def _find_competitors(self, product: Product) -> list[dict]:
         prompt = (
