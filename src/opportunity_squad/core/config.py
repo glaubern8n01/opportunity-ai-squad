@@ -54,6 +54,7 @@ class Settings(BaseSettings):
 
     # Fontes de dados
     github_token: str | None = Field(default=None, alias="GITHUB_TOKEN")
+    scrapegraph_api_key: str | None = Field(default=None, alias="SCRAPEGRAPH_API_KEY")
 
     # Plugins
     enabled_source_plugins: CsvList = Field(default_factory=list, alias="ENABLED_SOURCE_PLUGINS")

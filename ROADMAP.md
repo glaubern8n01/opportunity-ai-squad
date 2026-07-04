@@ -11,6 +11,8 @@
 - [x] MCP do Supabase configurado no escopo do projeto
 
 ## v0.2.0 — Mais fontes de dados
+- [x] Plugin `scrapegraph_ai` (extração estruturada via API hospedada da
+      ScrapeGraphAI — cobre fontes sem API oficial, sem scraping direto/agressivo)
 - [ ] Plugin `reddit` (OAuth client_credentials, API oficial)
 - [ ] Plugin `product_hunt` (GraphQL API oficial, requer developer token)
 - [ ] Plugin `google_play` / `app_store` (metadados públicos de apps)

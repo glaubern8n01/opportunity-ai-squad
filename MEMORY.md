@@ -209,3 +209,63 @@ migration inicial — RLS já vinha habilitado automaticamente pelo projeto (fun
 
 **Próximos passos**: mesmos de antes (preencher `.env`, aprovar push) — nada novo
 bloqueado por esta sessão.
+
+## Sessão: ANTHROPIC_API_KEY preenchida e plugin ScrapeGraphAI adicionado — 2026-07-03
+
+**Objetivo**: (1) preencher `ANTHROPIC_API_KEY` real no `.env` local a pedido do
+usuário; (2) pesquisar e instalar suporte ao ScrapeGraphAI como novo plugin de fonte,
+seguindo a arquitetura de plugins existente.
+
+**O que foi feito**:
+- `ANTHROPIC_API_KEY` preenchida em `.env` (fora do git) e validada com uma chamada
+  real à API (`claude-haiku-4-5-20251001`, custo mínimo) — funcionando.
+- Pesquisados os três repositórios do ScrapeGraphAI (`Scrapegraph-ai`, `scrapegraph-py`,
+  `scrapegraph-mcp`) e escolhido `scrapegraph-py` (SDK oficial da API hospedada):
+  única opção sem infraestrutura própria (sem Playwright/Chromium, sem API key de LLM
+  adicional) — a lib local (`scrapegraphai`) exigiria isso, e o `scrapegraph-mcp` é
+  para clientes MCP (Claude Desktop etc.), não para embutir num backend Python.
+  Detalhes da decisão em [docs/plugins/scrapegraph_ai.md](docs/plugins/scrapegraph_ai.md).
+- Instalado via `uv add scrapegraph-py` (v2.1.0, deps mínimas: `httpx`+`pydantic`,
+  já usadas no projeto) — `pyproject.toml` atualizado automaticamente.
+- Inspecionado o código-fonte real instalado (`.venv/.../scrapegraph_py/`) em vez de
+  confiar só na doc do GitHub, para pegar a assinatura exata de `client.search()`/
+  `client.extract()` e o formato de `ApiResult`/`ExtractResponse`/`SearchResponse`.
+- Criado o plugin `plugins/sources/scrapegraph_ai/` (`connector.py` + `plugin.yaml`,
+  `requires_config: ["api_key"]`): como a ScrapeGraphAI não tem catálogo próprio de
+  produtos (diferente de `github_trending`/`hacker_news`), `search()` usa
+  `client.search()` (busca na web + extração via schema em uma chamada) e
+  `fetch_details(external_id)` trata `external_id` como a própria URL do produto,
+  chamando `client.extract()` nela. `fetch_reviews()` é melhor esforço (retorna `[]`
+  em vez de propagar erro se a página não tiver depoimentos extraíveis).
+- Adicionada `scrapegraph_api_key: str | None` em `core/config.py`
+  (`SCRAPEGRAPH_API_KEY`) e wireado em `main.py:_source_plugin_config`.
+- Atualizado `.env.example` (nunca o `.env` real) com `SCRAPEGRAPH_API_KEY=` e
+  comentário apontando para o dashboard da ScrapeGraphAI.
+- Escritos 7 testes (`tests/unit/test_scrapegraph_ai_connector.py`, mockando
+  `https://v2-api.scrapegraphai.com/api/{search,extract}` via `respx`, mesmo padrão
+  dos outros conectores) cobrindo: normalização de resultados de busca, query
+  default, `fetch_details` por URL, rejeição de `external_id` que não é URL,
+  `fetch_reviews` melhor-esforço e o fallback de id sintético sem URL.
+- `docs/plugins/scrapegraph_ai.md` criado (novo tipo de doc — deep-dive por plugin,
+  além do `docs/architecture/plugins.md` gerado automaticamente); rodado o
+  Documentation Agent manualmente para regenerar `docs/architecture/plugins.md`
+  (agora lista 6 plugins) em vez de editar esse arquivo à mão.
+- `README.md`/`ARCHITECTURE.md`/`CHANGELOG.md`/`ROADMAP.md` atualizados.
+- `ruff check .` limpo, `mypy src plugins` limpo, suíte completa: 26/26 testes
+  passando (19 anteriores + 7 novos).
+
+**Decisões tomadas**:
+- SDK hospedado (`scrapegraph-py`) em vez da lib local ou do MCP server — ver tabela
+  comparativa em `docs/plugins/scrapegraph_ai.md`.
+- `external_id` deste plugin é a própria URL do item (não um id nativo de fonte),
+  porque ScrapeGraphAI não tem conceito de "id" — isso é uma exceção documentada ao
+  padrão dos outros conectores (que usam ids nativos da fonte, ex. `full_name` do
+  GitHub, `id` do HN).
+- `fetch_reviews` engole exceções e retorna `[]` em vez de propagar — decisão
+  deliberada porque nem toda página tem depoimentos extraíveis, e isso não deve
+  quebrar o pipeline do Review Agent (diferente de `search`/`fetch_details`, que
+  propagam erro via `SourceFetchError` normalmente, com retry).
+
+**Próximos passos**: usuário preencher `SCRAPEGRAPH_API_KEY` real (opcional, só se for
+habilitar o plugin em `ENABLED_SOURCE_PLUGINS`); considerar expor `default_query`/
+`num_results` como env vars próprias se o uso em produção pedir ajuste sem redeploy.

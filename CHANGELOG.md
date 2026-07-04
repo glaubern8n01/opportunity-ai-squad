@@ -5,6 +5,13 @@ Este projeto segue [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
 ## [Unreleased]
 
+### Adicionado
+- Plugin de fonte `scrapegraph_ai` (`plugins/sources/scrapegraph_ai`): extração
+  estruturada de páginas públicas via API hospedada da ScrapeGraphAI (SDK oficial
+  `scrapegraph-py`, dependência leve — só `httpx`+`pydantic`). Cobre fontes sem API
+  oficial própria, combinando busca na web com extração via LLM server-side.
+  Requer `SCRAPEGRAPH_API_KEY`. Ver [docs/plugins/scrapegraph_ai.md](docs/plugins/scrapegraph_ai.md).
+
 ## [0.1.0] - 2026-07-02
 
 ### Adicionado

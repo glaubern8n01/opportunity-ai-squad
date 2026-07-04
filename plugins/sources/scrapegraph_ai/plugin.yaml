@@ -1,0 +1,9 @@
+name: scrapegraph_ai
+category: sources
+entry_point: "plugins.sources.scrapegraph_ai.connector:ScrapeGraphAIConnector"
+description: >
+  Extração estruturada de páginas públicas via API hospedada da ScrapeGraphAI
+  (SDK oficial scrapegraph-py). Combina busca na web com extração via LLM
+  server-side — cobre fontes sem API oficial, sem scraping direto/agressivo.
+  Requer SCRAPEGRAPH_API_KEY.
+requires_config: ["api_key"]

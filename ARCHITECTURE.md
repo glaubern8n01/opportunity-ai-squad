@@ -40,7 +40,7 @@
                              │
 ┌─────────────────────────────────────────────────────────────────┐
 │  plugins/  (infraestrutura, auto-discovery via plugin.yaml)      │
-│  sources/{github_trending,hacker_news,...}                       │
+│  sources/{github_trending,hacker_news,scrapegraph_ai,...}         │
 │  ai/{anthropic,...}  notifications/{telegram,...}                │
 │  reports/{markdown,...}  exports/{...}                           │
 └─────────────────────────────────────────────────────────────────┘
@@ -72,7 +72,9 @@ plugins/sources/minha_fonte/
 Habilitar um plugin é só adicionar o nome em `ENABLED_SOURCE_PLUGINS` (ou
 `ENABLED_AI_PLUGINS`/`ENABLED_NOTIFICATION_PLUGINS`/`ENABLED_REPORT_PLUGINS`) no `.env`
 — nenhum código muda. Ver [docs/architecture/plugins.md](docs/architecture/plugins.md)
-para a lista atual (gerada automaticamente pelo Documentation Agent).
+para a lista atual (gerada automaticamente pelo Documentation Agent). Plugins com
+decisões de design não óbvias (ex.: por que um SDK e não outro) ganham um doc próprio
+em `docs/plugins/<nome>.md` — ver [docs/plugins/scrapegraph_ai.md](docs/plugins/scrapegraph_ai.md).
 
 ## Banco de dados
 

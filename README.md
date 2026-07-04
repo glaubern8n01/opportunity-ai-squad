@@ -168,6 +168,11 @@ Ver [CONTRIBUTING.md](CONTRIBUTING.md#como-criar-um-novo-plugin-fonte-ia-notific
 — resumo: crie `plugins/sources/<nome>/` com `plugin.yaml` + implementação de
 `SourceConnector`, adicione o nome em `ENABLED_SOURCE_PLUGINS`. Nenhuma mudança no Core.
 
+Fontes atuais: `github_trending` e `hacker_news` (APIs oficiais sem autenticação) e
+`scrapegraph_ai` (extração estruturada de páginas públicas sem API oficial própria,
+via API hospedada da ScrapeGraphAI — requer `SCRAPEGRAPH_API_KEY`; ver
+[docs/plugins/scrapegraph_ai.md](docs/plugins/scrapegraph_ai.md)).
+
 ## Como contribuir
 
 Ver [CONTRIBUTING.md](CONTRIBUTING.md).

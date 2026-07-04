@@ -40,6 +40,7 @@ def _source_plugin_config(settings: Settings) -> dict[str, dict]:
     return {
         "github_trending": {"token": settings.github_token},
         "hacker_news": {},
+        "scrapegraph_ai": {"api_key": settings.scrapegraph_api_key},
     }
 
 
